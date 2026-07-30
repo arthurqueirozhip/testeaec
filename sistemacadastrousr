@@ -1,0 +1,295 @@
+// Avaliação de inserção de dados pessoais
+
+csharpusing System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using SistemaConsole.Models;
+using SistemaConsole.Services;
+
+namespace SistemaConsole
+{
+    class Program
+    {
+        // Bancos de dados simulados em memória
+        static List<Usuario> listaUsuarios = new List<Usuario>();
+        static List<Endereco> listaEnderecos = new List<Endereco>();
+        
+        static Usuario usuarioLogado = null;
+        static ViaCepService viaCepService = new ViaCepService();
+
+        static int proximoUsuarioId = 1;
+        static int proximoEnderecoId = 1;
+
+        static async Task Main(string[] args)
+        {
+            // Criando um usuário padrão para facilitar o login inicial
+            listaUsuarios.Add(new Usuario { Id = proximoUsuarioId++, Nome = "Admin", Email = "admin@email.com", Senha = "123" });
+
+            while (true)
+            {
+                if (usuarioLogado == null)
+                {
+                    MenuLogin();
+                }
+                else
+                {
+                    await MenuPrincipalAsync();
+                }
+            }
+        }
+
+        #region Menus de Navegação
+
+        static void MenuLogin()
+        {
+            Console.Clear();
+            Console.WriteLine("=== SISTEMA DE CADASTRO ===");
+            Console.WriteLine("1 - Login");
+            Console.WriteLine("2 - Cadastrar-se");
+            Console.WriteLine("3 - Sair");
+            Console.Write("Escolha uma opção: ");
+            
+            switch (Console.ReadLine())
+            {
+                case "1":
+                    ExecutarLogin();
+                    break;
+                case "2":
+                    CriarUsuario(true);
+                    break;
+                case "3":
+                    Environment.Exit(0);
+                    break;
+                default:
+                    Console.WriteLine("Opção inválida! Pressione qualquer tecla para continuar...");
+                    Console.ReadKey();
+                    break;
+            }
+        }
+
+        static async Task MenuPrincipalAsync()
+        {
+            Console.Clear();
+            Console.WriteLine($"=== BEM-VINDO, {usuarioLogado.Nome.ToUpper()} ===");
+            Console.WriteLine("1 - CRUD Usuários");
+            Console.WriteLine("2 - CRUD Endereços");
+            Console.WriteLine("3 - Exportar Dados para CSV");
+            Console.WriteLine("4 - Logout");
+            Console.Write("Escolha uma opção: ");
+
+            switch (Console.ReadLine())
+            {
+                case "1":
+                    MenuUsuarios();
+                    break;
+                case "2":
+                    await MenuEnderecosAsync();
+                    break;
+                case "3":
+                    ExportService.ExportarUsuariosEEnderecos(listaUsuarios, listaEnderecos, "dados_sistema.csv");
+                    Console.ReadKey();
+                    break;
+                case "4":
+                    usuarioLogado = null;
+                    break;
+            }
+        }
+
+        static void MenuUsuarios()
+        {
+            Console.Clear();
+            Console.WriteLine("=== CRUD USUÁRIOS ===");
+            Console.WriteLine("1 - Listar Usuários");
+            Console.WriteLine("2 - Cadastrar Usuário");
+            Console.WriteLine("3 - Atualizar Usuário");
+            Console.WriteLine("4 - Deletar Usuário");
+            Console.WriteLine("5 - Voltar");
+            Console.Write("Escolha uma opção: ");
+
+            switch (Console.ReadLine())
+            {
+                case "1": ListarUsuarios(); break;
+                case "2": CriarUsuario(false); break;
+                case "3": AtualizarUsuario(); break;
+                case "4": DeletarUsuario(); break;
+            }
+        }
+
+        static async Task MenuEnderecosAsync()
+        {
+            Console.Clear();
+            Console.WriteLine("=== CRUD ENDEREÇOS ===");
+            Console.WriteLine("1 - Listar Meus Endereços");
+            Console.WriteLine("2 - Cadastrar Endereço (ViaCEP)");
+            Console.WriteLine("3 - Atualizar Endereço");
+            Console.WriteLine("4 - Deletar Endereço");
+            Console.WriteLine("5 - Voltar");
+            Console.Write("Escolha uma opção: ");
+
+            switch (Console.ReadLine())
+            {
+                case "1": ListarEnderecos(); break;
+                case "2": await CriarEnderecoAsync(); break;
+                case "3": AtualizarEndereco(); break;
+                case "4": DeletarEndereco(); break;
+            }
+        }
+
+        #endregion
+
+        #region Autenticação e Login
+
+        static void ExecutarLogin()
+        {
+            Console.Clear();
+            Console.WriteLine("=== LOGIN ===");
+            Console.Write("Email: ");
+            string email = Console.ReadLine();
+            Console.Write("Senha: ");
+            string senha = Console.ReadLine();
+
+            var usuario = listaUsuarios.Find(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && u.Senha == senha);
+
+            if (usuario != null)
+            {
+                usuarioLogado = usuario;
+            }
+            else
+            {
+                Console.WriteLine("\n[Erro] E-mail ou senha incorretos.");
+                Console.ReadKey();
+            }
+        }
+
+        #endregion
+
+        #region CRUD Usuários
+
+        static void CriarUsuario(bool autoLogin)
+        {
+            Console.Clear();
+            Console.WriteLine("=== CADASTRAR USUÁRIO ===");
+            Console.Write("Nome: ");
+            string nome = Console.ReadLine();
+            Console.Write("Email: ");
+            string email = Console.ReadLine();
+            Console.Write("Senha: ");
+            string senha = Console.ReadLine();
+
+            if (listaUsuarios.Exists(u => u.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
+            {
+                Console.WriteLine("\n[Erro] Este e-mail já está cadastrado.");
+                Console.ReadKey();
+                return;
+            }
+
+            var novoUsuario = new Usuario { Id = proximoUsuarioId++, Nome = nome, Email = email, Senha = senha };
+            listaUsuarios.Add(novoUsuario);
+
+            Console.WriteLine("\n[Sucesso] Usuário cadastrado!");
+            if (autoLogin) usuarioLogado = novoUsuario;
+            else Console.ReadKey();
+        }
+
+        static void ListarUsuarios()
+        {
+            Console.Clear();
+            Console.WriteLine("=== LISTA DE USUÁRIOS ===");
+            foreach (var u in listaUsuarios)
+            {
+                Console.WriteLine($"ID: {u.Id} | Nome: {u.Nome} | Email: {u.Email}");
+            }
+            Console.ReadKey();
+        }
+
+        static void AtualizarUsuario()
+        {
+            Console.Clear();
+            Console.WriteLine("=== ATUALIZAR USUÁRIO ===");
+            Console.Write("Digite o ID do usuário: ");
+            int id = int.Parse(Console.ReadLine());
+
+            var usuario = listaUsuarios.Find(u => u.Id == id);
+            if (usuario == null)
+            {
+                Console.WriteLine("\n[Erro] Usuário não encontrado.");
+                Console.ReadKey();
+                return;
+            }
+
+            Console.Write($"Novo Nome ({usuario.Nome}): ");
+            string nome = Console.ReadLine();
+            if (!string.IsNullOrEmpty(nome)) usuario.Nome = nome;
+
+            Console.Write($"Nova Senha: ");
+            string senha = Console.ReadLine();
+            if (!string.IsNullOrEmpty(senha)) usuario.Senha = senha;
+
+            Console.WriteLine("\n[Sucesso] Usuário atualizado!");
+            Console.ReadKey();
+        }
+
+        static void DeletarUsuario()
+        {
+            Console.Clear();
+            Console.WriteLine("=== DELETAR USUÁRIO ===");
+            Console.Write("Digite o ID do usuário: ");
+            int id = int.Parse(Console.ReadLine());
+
+            if (id == usuarioLogado.Id)
+            {
+                Console.WriteLine("\n[Erro] Você não pode deletar a si mesmo enquanto estiver logado.");
+                Console.ReadKey();
+                return;
+            }
+
+            var usuario = listaUsuarios.Find(u => u.Id == id);
+            if (usuario != null)
+            {
+                listaUsuarios.Remove(usuario);
+                listaEnderecos.RemoveAll(e => e.UsuarioId == id); // Cascata de exclusão
+                Console.WriteLine("\n[Sucesso] Usuário e seus endereços foram removidos.");
+            }
+            else
+            {
+                Console.WriteLine("\n[Erro] Usuário não encontrado.");
+            }
+            Console.ReadKey();
+        }
+
+        #endregion
+
+        #region CRUD Endereços (com ViaCEP)
+
+        static async Task CriarEnderecoAsync()
+        {
+            Console.Clear();
+            Console.WriteLine("=== CADASTRAR ENDEREÇO (ViaCEP) ===");
+            Console.Write("Digite o CEP: ");
+            string cep = Console.ReadLine();
+
+            Console.WriteLine("Buscando dados no ViaCEP...");
+            var dadosCep = await viaCepService.BuscarCepAsync(cep);
+
+            if (dadosCep == null)
+            {
+                Console.WriteLine("\n[Erro] CEP inválido ou não encontrado.");
+                Console.ReadKey();
+                return;
+            }
+
+            Console.WriteLine($"\nEndereço Encontrado:\n{dadosCep.Logradouro}, {dadosCep.Bairro} - {dadosCep.Localidade}/{dadosCep.Uf}");
+            Console.Write("Número / Complemento: ");
+            string numero = Console.ReadLine();
+
+            var novoEndereco = new Endereco
+            {
+                Id = proximoEnderecoId++,
+                UsuarioId = usuarioLogado.Id,
+                Cep = dadosCep.Cep,
+                Logradouro = dadosCep.Logradouro,
+                Bairro = dadosCep.Bairro,
+                Localidade = dadosCep.Localidade,
+                Uf = dadosCep.Uf,
+                Numero = numero
+            };
